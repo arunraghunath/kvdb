@@ -1,27 +1,28 @@
 package core
 
 import (
-	"errors"
+	"io"
 	"net"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func ProcessCommand(conn net.Conn) (string, error) {
+func ProcessCommand(conn net.Conn) error {
 	lcmd, err := readCommand(conn)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if len(lcmd) == 0 {
-		return "", errors.New("no command received")
+		conn.Write([]byte("no command received"))
 	}
 	lresp := strings.Fields(lcmd)
 	lkvdbCmd := &KVDBCmd{
 		Cmd:  lresp[0],
 		Args: lresp[1:],
 	}
-	return lkvdbCmd.Parse()
+	lkvdbCmd.Parse(conn)
+	return nil
 }
 
 func readCommand(lconn net.Conn) (string, error) {
@@ -33,32 +34,36 @@ func readCommand(lconn net.Conn) (string, error) {
 	return string(lbuf[:n]), nil
 }
 
-func (kvcmd *KVDBCmd) Parse() (string, error) {
+func (kvcmd *KVDBCmd) Parse(w io.ReadWriter) {
 	switch kvcmd.Cmd {
 	case "PING":
-		return "Hello, your ping is a success..", nil
+		w.Write([]byte("Hello, your ping is a success.."))
 	case "SET":
 		if len(kvcmd.Args) > 3 {
-			return "", errors.New("incorrect syntax")
+			w.Write([]byte("incorrect syntax"))
+			return
 		}
-		return "", handleSet(kvcmd.Args)
+		handleSet(kvcmd.Args, w)
 	case "GET":
 		if len(kvcmd.Args) == 0 || len(kvcmd.Args) > 1 {
-			return "", errors.New("incorrect syntax")
+			w.Write([]byte("incorrect syntax"))
+			return
 		}
-		return handleGet(kvcmd.Args)
+		handleGet(kvcmd.Args, w)
 	default:
-		return "", errors.New("unsupported command")
+		w.Write([]byte("unsupported command"))
+		return
 	}
 }
 
-func handleSet(args []string) error {
+func handleSet(args []string, w io.ReadWriter) {
 	var ldurInSec int64 = -1
 	var err error
 	if len(args) == 3 {
 		ldurInSec, err = strconv.ParseInt(args[2], 10, 64)
 		if err != nil {
-			return errors.New("duration provided for the command is out of range")
+			w.Write([]byte("duration provided for the command is out of range"))
+			return
 		}
 		ldurInSec = ldurInSec * 1000
 	} else {
@@ -66,18 +71,20 @@ func handleSet(args []string) error {
 	}
 	lkvobj := NewKVObj(args[1], ldurInSec)
 	Put(args[0], lkvobj)
-	return errors.New("key is set")
+	w.Write([]byte("key is set"))
 }
 
-func handleGet(args []string) (string, error) {
+func handleGet(args []string, w io.ReadWriter) {
 	lresp := Get(args[0])
 	if lresp == nil {
-		return "", errors.New("key does not exist")
+		w.Write([]byte("key does not exist"))
+		return
 	}
 	if lresp.ExpiresAt > 0 {
 		if lresp.ExpiresAt < time.Now().UnixMilli() {
-			return "", errors.New("value has expired")
+			w.Write([]byte("value has expired"))
+			return
 		}
 	}
-	return lresp.Value, nil
+	w.Write([]byte(lresp.Value))
 }

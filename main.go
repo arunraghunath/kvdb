@@ -25,12 +25,9 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		lcmd, err := core.ProcessCommand(lconn)
+		err = core.ProcessCommand(lconn)
 		if err != nil {
 			fmt.Println(err)
-		} else {
-			fmt.Println(lcmd)
-			//lconn.Write([]byte(lcmd[0]))
 		}
 	}
 }
