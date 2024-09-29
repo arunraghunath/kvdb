@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -50,6 +51,19 @@ func (kvcmd *KVDBCmd) Parse(w io.ReadWriter) {
 			return
 		}
 		handleGet(kvcmd.Args, w)
+	case "DEL":
+		if len(kvcmd.Args) == 0 {
+			w.Write([]byte("incorrect syntax"))
+			return
+		}
+		var lcount int
+		lcount = handleDelete(kvcmd.Args)
+		w.Write([]byte(fmt.Sprintf("no of keys deleted - %d", lcount)))
+	case "EXP":
+		lcount := handleExpire()
+		fmt.Println(lcount)
+		w.Write([]byte(fmt.Sprintf("no of keys expired - %d", lcount)))
+
 	default:
 		w.Write([]byte("unsupported command"))
 		return
@@ -82,9 +96,25 @@ func handleGet(args []string, w io.ReadWriter) {
 	}
 	if lresp.ExpiresAt > 0 {
 		if lresp.ExpiresAt < time.Now().UnixMilli() {
+			delkey := []string{args[0]}
+			handleDelete(delkey)
 			w.Write([]byte("value has expired"))
 			return
 		}
 	}
 	w.Write([]byte(lresp.Value))
+}
+
+func handleDelete(args []string) int {
+	lcount := 0
+	if len(args) > 0 {
+		for _, v := range args {
+			lcount = lcount + Del(v)
+		}
+	}
+	return lcount
+}
+
+func handleExpire() int {
+	return Expire()
 }

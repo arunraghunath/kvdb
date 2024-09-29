@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -33,4 +34,28 @@ func Put(key string, kvobj *KVObj) {
 
 func Get(key string) *KVObj {
 	return store[key]
+}
+
+func Del(key string) int {
+	lobj := Get(key)
+	if lobj == nil {
+		return 0
+	}
+	delete(store, key)
+	return 1
+}
+
+func Expire() int {
+	lcount := 0
+	lcurr := time.Now().UnixMilli()
+	fmt.Println(lcurr)
+	for k, v := range store {
+		fmt.Println("Key is ", k)
+		fmt.Println("Value is ", v.Value, " ", v.ExpiresAt)
+		if v.ExpiresAt != -1 && v.ExpiresAt < lcurr {
+			fmt.Println("Deleting the key")
+			lcount = lcount + Del(k)
+		}
+	}
+	return lcount
 }
